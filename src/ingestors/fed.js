@@ -56,7 +56,7 @@ function upsertEvent(evt) {
 
 // Fed 연설 RSS 크롤링
 export async function ingestFed() {
-  const feed = await parser.parseURL('https://www.federalreserve.gov/feeds/speeches.htm');
+  const feed = await parser.parseURL('https://www.federalreserve.gov/feeds/speeches.xml');
   for (const item of feed.items) {
     const url = item.link;
     const title = (item.title || 'Federal Reserve Speech').trim();
