@@ -3,6 +3,8 @@ import 'dotenv/config';
 import { scheduleJobs } from './scheduler.js';
 import { handlePrefixCommand } from './prefix.js';
 import { ingestFed } from './ingestors/fed.js';
+import { ingestECB } from './ingestors/ecb.js';   // 추가
+import { ingestBoE } from './ingestors/boe.js';   // 추가
 
 // 프리픽스 명령어 즉시 사용 (슬래시 불필요)
 const client = new Client({
@@ -16,16 +18,18 @@ const client = new Client({
 
 const PREFIX = process.env.PREFIX || '!';
 
-// ⚠️ v15 대비: ready -> clientReady
+// v15 대비: ready → clientReady (DeprecationWarning 제거)
 client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
   // 부팅 시 1회 수집
   try {
     await ingestFed();
-    console.log('Fed ingest done.');
+    await ingestECB();
+    await ingestBoE();
+    console.log('Fed/ECB/BoE ingest done.');
   } catch (e) {
-    console.error('Fed ingest error:', e);
+    console.error('Ingest error:', e);
   }
 
   // 스케줄 루프 시작(알림)
@@ -33,7 +37,13 @@ client.once('clientReady', async () => {
 
   // 수집 주기(30분) – 필요 시 조정
   setInterval(async () => {
-    try { await ingestFed(); } catch (e) { console.error('ingestFed loop error:', e); }
+    try {
+      await ingestFed();
+      await ingestECB();
+      await ingestBoE();
+    } catch (e) {
+      console.error('ingestor loop error:', e);
+    }
   }, 30 * 60 * 1000);
 });
 
@@ -50,6 +60,6 @@ client.on('messageCreate', async (msg) => {
 
 client.login(process.env.DISCORD_TOKEN);
 
-// (선택) 예외 로깅 보강
+// (옵션) 예외 로깅 보강
 process.on('unhandledRejection', (err) => console.error('UnhandledRejection:', err));
 process.on('uncaughtException', (err) => console.error('UncaughtException:', err));
