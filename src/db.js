@@ -26,10 +26,24 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   PRIMARY KEY(scope_id, source)
 );
 
+-- 언어(lang) 기본값은 'mixed'
 CREATE TABLE IF NOT EXISTS settings (
   scope_id TEXT PRIMARY KEY,
-  leads TEXT                 -- JSON 배열 문자열 e.g. ["1h","24h"]
+  leads TEXT,               -- JSON 배열 문자열 e.g. ["1h","24h"]
+  lang  TEXT DEFAULT 'mixed'
 );
 `);
+
+// ✅ 기존 DB에 lang 컬럼이 없으면 추가 (안전 처리)
+try {
+  const cols = db.prepare(`PRAGMA table_info(settings)`).all();
+  const hasLang = cols.some(c => c.name === 'lang');
+  if (!hasLang) {
+    db.prepare(`ALTER TABLE settings ADD COLUMN lang TEXT DEFAULT 'mixed'`).run();
+  }
+} catch (e) {
+  // 일부 환경에서 PRAGMA/ALTER 실패 시 로그만 남기고 무시
+  console.warn('settings.lang migration warn:', e.message);
+}
 
 export default db;
