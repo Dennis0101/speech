@@ -16,8 +16,10 @@ const client = new Client({
 
 const PREFIX = process.env.PREFIX || '!';
 
-client.once('ready', async () => {
+// ⚠️ v15 대비: ready -> clientReady
+client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
+
   // 부팅 시 1회 수집
   try {
     await ingestFed();
@@ -25,6 +27,7 @@ client.once('ready', async () => {
   } catch (e) {
     console.error('Fed ingest error:', e);
   }
+
   // 스케줄 루프 시작(알림)
   scheduleJobs(client);
 
@@ -46,3 +49,7 @@ client.on('messageCreate', async (msg) => {
 });
 
 client.login(process.env.DISCORD_TOKEN);
+
+// (선택) 예외 로깅 보강
+process.on('unhandledRejection', (err) => console.error('UnhandledRejection:', err));
+process.on('uncaughtException', (err) => console.error('UncaughtException:', err));
