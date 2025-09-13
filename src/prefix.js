@@ -1,6 +1,14 @@
 import { DateTime } from 'luxon';
-import { getUpcomingEvents, setLeads, subscribe, unsubscribe, listSubscriptions } from './service.js';
-import { getTimelineChartUrlForNextDays } from './timeline.js'; // ⬅️ 추가
+import {
+  getUpcomingEvents,
+  setLeads,
+  subscribe,
+  unsubscribe,
+  listSubscriptions,
+  setLang,          // ⬅️ 추가
+  getLang           // ⬅️ 추가
+} from './service.js';
+import { getTimelineChartUrlForNextDays } from './timeline.js';
 
 const KST = 'Asia/Seoul';
 
@@ -13,7 +21,8 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
       '`!unsub <fed|ecb|boe|all>` — 채널 구독 해제',
       '`!alerts <리드들>` — 알림 리드 설정 (예: `!alerts 30m 1h 24h`)',
       '`!subs` — 이 채널 구독 목록',
-      '`!timeline [일수]` — 다가오는 일정 타임라인 이미지(기본 7일, 최대 14일)', // ⬅️ 추가
+      '`!timeline [일수]` — 다가오는 일정 타임라인 이미지(기본 7일, 최대 14일)',
+      '`!lang [mixed|ko|en]` — 알림 언어 조회/설정 (기본 mixed)',
       '`!help`'
     ].join('\n'));
   }
@@ -62,15 +71,31 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
     return msg.reply(`⏰ 알림 리드: \`${leads.join(', ')}\``);
   }
 
-  // ⬇️ 새로 추가: 타임라인 이미지
+  // ⬇️ 타임라인 이미지
   if (cmd === 'timeline') {
     const days = Math.min(Math.max(Number(args[0]) || 7, 1), 14); // 1~14일 제한 (URL 과도 길이 방지)
     const url = getTimelineChartUrlForNextDays(days);
-    if (!url) return msg.reply('표시할 일정이 없어요. 먼저 `!sub fed|ecb|boe|all`로 구독하고 데이터가 쌓였는지 확인해보세요.');
+    if (!url) {
+      return msg.reply('표시할 일정이 없어요. 먼저 `!sub fed|ecb|boe|all`로 구독하고 데이터가 쌓였는지 확인해보세요.');
+    }
     return msg.reply({
       content: `🗓️ 다가오는 ${days}일 타임라인`,
       embeds: [{ title: `Upcoming ${days} Days (KST)`, image: { url } }]
     });
+  }
+
+  // ⬇️ 언어 설정: 조회/변경
+  if (cmd === 'lang') {
+    const v = (args[0] || '').toLowerCase();
+    if (!v) {
+      const cur = getLang(msg.channelId);
+      return msg.reply(`현재 알림 언어: **${cur}** (mixed|ko|en)`);
+    }
+    if (!['mixed','ko','en'].includes(v)) {
+      return msg.reply('사용법: `!lang mixed|ko|en`');
+    }
+    setLang(msg.channelId, v);
+    return msg.reply(`✅ 알림 언어가 **${v}**로 설정됐어요.`);
   }
 
   return msg.reply('명령을 찾지 못했어요. `!help`를 입력해보세요.');
