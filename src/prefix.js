@@ -5,20 +5,21 @@ import {
   subscribe,
   unsubscribe,
   listSubscriptions,
-  setLang,          // ⬅️ 추가
-  getLang           // ⬅️ 추가
+  setLang,
+  getLang
 } from './service.js';
 import { getTimelineChartUrlForNextDays } from './timeline.js';
 
 const KST = 'Asia/Seoul';
+const ALLOWED_SOURCES = ['fed','ecb','boe','news','cpi','nfp','fomc','all'];
 
 export async function handlePrefixCommand({ client, msg, cmd, args }) {
   if (cmd === 'help') {
     return msg.reply([
       '**명령어**',
       '`!next [시간]` — 앞으로 N시간(기본 48) 일정',
-      '`!sub <fed|ecb|boe|all>` — 채널 구독',
-      '`!unsub <fed|ecb|boe|all>` — 채널 구독 해제',
+      '`!sub <fed|ecb|boe|news|cpi|nfp|fomc|all>` — 채널 구독',
+      '`!unsub <fed|ecb|boe|news|cpi|nfp|fomc|all>` — 채널 구독 해제',
       '`!alerts <리드들>` — 알림 리드 설정 (예: `!alerts 30m 1h 24h`)',
       '`!subs` — 이 채널 구독 목록',
       '`!timeline [일수]` — 다가오는 일정 타임라인 이미지(기본 7일, 최대 14일)',
@@ -44,13 +45,14 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
 
   if (cmd === 'subs') {
     const subs = listSubscriptions(msg.channelId);
-    return msg.reply(subs.length ? `구독중: \`${subs.join(', ')}\`` : '구독 없음. `!sub fed|ecb|boe|all`');
+    return msg.reply(subs.length ? `구독중: \`${subs.join(', ')}\`` :
+      '구독 없음. `!sub fed|ecb|boe|news|cpi|nfp|fomc|all`');
   }
 
   if (cmd === 'sub') {
     const t = (args[0] || '').toLowerCase();
-    if (!['fed','ecb','boe','all'].includes(t)) {
-      return msg.reply('사용법: `!sub fed|ecb|boe|all`');
+    if (!ALLOWED_SOURCES.includes(t)) {
+      return msg.reply('사용법: `!sub fed|ecb|boe|news|cpi|nfp|fomc|all`');
     }
     subscribe(msg.channelId, t);
     return msg.reply(`✅ 구독 완료: **${t.toUpperCase()}**`);
@@ -58,8 +60,8 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
 
   if (cmd === 'unsub') {
     const t = (args[0] || '').toLowerCase();
-    if (!['fed','ecb','boe','all'].includes(t)) {
-      return msg.reply('사용법: `!unsub fed|ecb|boe|all`');
+    if (!ALLOWED_SOURCES.includes(t)) {
+      return msg.reply('사용법: `!unsub fed|ecb|boe|news|cpi|nfp|fomc|all`');
     }
     unsubscribe(msg.channelId, t);
     return msg.reply(`✅ 구독 해제: **${t.toUpperCase()}**`);
@@ -71,12 +73,12 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
     return msg.reply(`⏰ 알림 리드: \`${leads.join(', ')}\``);
   }
 
-  // ⬇️ 타임라인 이미지
+  // 타임라인 이미지
   if (cmd === 'timeline') {
-    const days = Math.min(Math.max(Number(args[0]) || 7, 1), 14); // 1~14일 제한 (URL 과도 길이 방지)
+    const days = Math.min(Math.max(Number(args[0]) || 7, 1), 14); // 1~14일 제한
     const url = getTimelineChartUrlForNextDays(days);
     if (!url) {
-      return msg.reply('표시할 일정이 없어요. 먼저 `!sub fed|ecb|boe|all`로 구독하고 데이터가 쌓였는지 확인해보세요.');
+      return msg.reply('표시할 일정이 없어요. 먼저 `!sub fed|ecb|boe|news|cpi|nfp|fomc|all`로 구독하고 데이터가 쌓였는지 확인해보세요.');
     }
     return msg.reply({
       content: `🗓️ 다가오는 ${days}일 타임라인`,
@@ -84,7 +86,7 @@ export async function handlePrefixCommand({ client, msg, cmd, args }) {
     });
   }
 
-  // ⬇️ 언어 설정: 조회/변경
+  // 언어 설정: 조회/변경
   if (cmd === 'lang') {
     const v = (args[0] || '').toLowerCase();
     if (!v) {
