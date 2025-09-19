@@ -82,7 +82,7 @@ client.on('messageCreate', async (msg) => {
 });
 
 // 패널 기능 초기화
-setupPanel(client);
+//setupPanel(client);
 
 client.login(process.env.DISCORD_TOKEN);
 
