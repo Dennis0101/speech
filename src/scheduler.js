@@ -1,6 +1,7 @@
+// src/scheduler.js
 import { DateTime } from 'luxon';
 import db from './db.js';
-import { getLeads } from './service.js';
+import { getLeads, getLang } from './service.js'; // ⬅️ 언어 설정도 반영
 
 const KST = 'Asia/Seoul';
 
@@ -29,6 +30,7 @@ export async function scheduleJobs(client) {
 
       const leads = getLeads(channelId); // 채널 스코프 리드 설정
       const leadHours = leads.map(leadToHours).filter(v => v !== null);
+      const lang = getLang(channelId);   // mixed | ko | en
 
       for (const ev of rows) {
         const start = DateTime.fromISO(ev.start_utc, { zone: 'utc' });
@@ -36,18 +38,32 @@ export async function scheduleJobs(client) {
         const source = String(ev.source || '').toUpperCase();
         const isNews = String(ev.source || '').startsWith('news');
 
-        // 시작 알림
-        // 뉴스는 즉시성 강화를 위해 윈도우를 60분으로 확대
+        // 시작 알림 (뉴스는 즉시성 강화를 위해 윈도우 60분으로 확대)
         const windowMin = isNews ? 60 : 5;
         if (!ev.notified_start && now >= start && now <= start.plus({ minutes: windowMin })) {
+          let desc;
+          if (isNews) {
+            // 뉴스 요약 붙이기
+            let summaryText = '';
+            if (lang === 'ko' && ev.summary_ko) summaryText = ev.summary_ko;
+            else if (lang === 'en' && ev.summary_en) summaryText = ev.summary_en;
+            else if (lang === 'mixed') {
+              if (ev.summary_ko) summaryText += `🇰🇷 ${ev.summary_ko}\n`;
+              if (ev.summary_en) summaryText += `🇺🇸 ${ev.summary_en}`;
+            }
+
+            desc = `시각(KST): **${kst}**\n링크: ${ev.url}`;
+            if (summaryText) desc += `\n\n📌 요약:\n${summaryText}`;
+          } else {
+            desc = `일시(KST): **${kst}**\n장소: ${ev.location || 'TBD'}\n연설자: ${ev.speaker || 'TBD'}`;
+          }
+
           await ch.send({
             content: isNews ? '⚡ **속보!**' : '🎙️ **시작!**',
             embeds: [{
               title: `[${source}] ${ev.title}`,
               url: ev.url,
-              description: isNews
-                ? `시각(KST): **${kst}**\n링크: ${ev.url}`
-                : `일시(KST): **${kst}**\n장소: ${ev.location || 'TBD'}\n연설자: ${ev.speaker || 'TBD'}`
+              description: desc
             }]
           });
           db.prepare(`UPDATE events SET notified_start=1 WHERE id=?`).run(ev.id);
