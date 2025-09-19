@@ -2,17 +2,22 @@ import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import 'dotenv/config';
 import { scheduleJobs } from './scheduler.js';
 import { handlePrefixCommand } from './prefix.js';
+
+// 인제스터
 import { ingestFed } from './ingestors/fed.js';
 import { ingestECB } from './ingestors/ecb.js';
 import { ingestBoE } from './ingestors/boe.js';
-import { ingestNews } from './ingestors/news.js'; // ⬅️ 추가
+import { ingestNews } from './ingestors/news.js';
+import { ingestCPI } from './ingestors/cpi.js';
+import { ingestNFP } from './ingestors/nfp.js';
+import { ingestFOMC } from './ingestors/fomc.js';
 
 // 프리픽스 명령어 즉시 사용 (슬래시 불필요)
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent // ✅ 프리픽스 명령에 필요
+    GatewayIntentBits.MessageContent // ✅ 프리픽스 명령어에 필요
   ],
   partials: [Partials.Channel]
 });
@@ -23,15 +28,23 @@ const PREFIX = process.env.PREFIX || '!';
 client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
+  // 환경 점검
+  if (!process.env.DISCORD_CHANNEL_ID) {
+    console.warn('⚠️ DISCORD_CHANNEL_ID 가 설정되지 않았습니다. 알림이 전송되지 않을 수 있어요.');
+  }
+
   // 부팅 시 1회 수집
   try {
     await ingestFed();
     await ingestECB();
     await ingestBoE();
-    await ingestNews(); // ⬅️ 뉴스 1회 수집
-    console.log('Fed/ECB/BoE/News ingest done.');
+    await ingestNews();
+    await ingestCPI();
+    await ingestNFP();
+    await ingestFOMC();
+    console.log('Fed/ECB/BoE/News/CPI/NFP/FOMC ingest done.');
   } catch (e) {
-    console.error('Ingest error:', e);
+    console.error('Ingest error (boot):', e);
   }
 
   // 스케줄 루프 시작(알림)
@@ -43,7 +56,10 @@ client.once('clientReady', async () => {
       await ingestFed();
       await ingestECB();
       await ingestBoE();
-      await ingestNews(); // 30분 루프에도 포함(백업용)
+      await ingestNews(); // 백업용으로 30분 루프에도 포함
+      await ingestCPI();
+      await ingestNFP();
+      await ingestFOMC();
     } catch (e) {
       console.error('ingestor loop error:', e);
     }
@@ -52,7 +68,11 @@ client.once('clientReady', async () => {
   // 뉴스 전용 짧은 루프 (기본 5분)
   const newsMin = Math.max(1, Number(process.env.NEWS_POLL_MIN || 5));
   setInterval(async () => {
-    try { await ingestNews(); } catch (e) { console.error('ingestNews short loop error:', e); }
+    try {
+      await ingestNews();
+    } catch (e) {
+      console.error('ingestNews short loop error:', e);
+    }
   }, newsMin * 60 * 1000);
 });
 
@@ -62,7 +82,7 @@ client.on('messageCreate', async (msg) => {
   try {
     await handlePrefixCommand({ client, msg, cmd: cmd.toLowerCase(), args });
   } catch (e) {
-    console.error(e);
+    console.error('command error:', e);
     msg.reply('⚠️ 명령 처리 중 오류가 발생했어요.');
   }
 });
