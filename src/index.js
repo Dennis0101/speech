@@ -12,28 +12,27 @@ import { ingestCPI } from './ingestors/cpi.js';
 import { ingestNFP } from './ingestors/nfp.js';
 import { ingestFOMC } from './ingestors/fomc.js';
 
-// 프리픽스 명령어 즉시 사용 (슬래시 불필요)
+// 패널 모듈 불러오기
+import { setupPanel } from './panel.js';
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent // ✅ 프리픽스 명령어에 필요
+    GatewayIntentBits.MessageContent
   ],
   partials: [Partials.Channel]
 });
 
 const PREFIX = process.env.PREFIX || '!';
 
-// v15 대비: ready → clientReady (DeprecationWarning 제거)
 client.once('clientReady', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
 
-  // 환경 점검
   if (!process.env.DISCORD_CHANNEL_ID) {
     console.warn('⚠️ DISCORD_CHANNEL_ID 가 설정되지 않았습니다. 알림이 전송되지 않을 수 있어요.');
   }
 
-  // 부팅 시 1회 수집
   try {
     await ingestFed();
     await ingestECB();
@@ -47,16 +46,14 @@ client.once('clientReady', async () => {
     console.error('Ingest error (boot):', e);
   }
 
-  // 스케줄 루프 시작(알림)
   scheduleJobs(client);
 
-  // 중앙은행/정기 수집 루프 (30분)
   setInterval(async () => {
     try {
       await ingestFed();
       await ingestECB();
       await ingestBoE();
-      await ingestNews(); // 백업용으로 30분 루프에도 포함
+      await ingestNews();
       await ingestCPI();
       await ingestNFP();
       await ingestFOMC();
@@ -65,7 +62,6 @@ client.once('clientReady', async () => {
     }
   }, 30 * 60 * 1000);
 
-  // 뉴스 전용 짧은 루프 (기본 5분)
   const newsMin = Math.max(1, Number(process.env.NEWS_POLL_MIN || 5));
   setInterval(async () => {
     try {
@@ -87,8 +83,10 @@ client.on('messageCreate', async (msg) => {
   }
 });
 
+// 패널 기능 초기화
+setupPanel(client);
+
 client.login(process.env.DISCORD_TOKEN);
 
-// (옵션) 예외 로깅 보강
 process.on('unhandledRejection', (err) => console.error('UnhandledRejection:', err));
 process.on('uncaughtException', (err) => console.error('UncaughtException:', err));
