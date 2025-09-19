@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import 'dotenv/config';
 import { scheduleJobs } from './scheduler.js';
 import { handlePrefixCommand } from './prefix.js';
-
+import { setupPanel } from './panel.js';
 // 인제스터
 import { ingestFed } from './ingestors/fed.js';
 import { ingestECB } from './ingestors/ecb.js';
@@ -82,7 +82,7 @@ client.on('messageCreate', async (msg) => {
 });
 
 // 패널 기능 초기화
-//setupPanel(client);
+setupPanel(client);
 
 client.login(process.env.DISCORD_TOKEN);
 
