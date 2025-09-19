@@ -12,8 +12,6 @@ import { ingestCPI } from './ingestors/cpi.js';
 import { ingestNFP } from './ingestors/nfp.js';
 import { ingestFOMC } from './ingestors/fomc.js';
 
-// 패널 모듈 불러오기
-import { setupPanel } from './panel.js';
 
 const client = new Client({
   intents: [
