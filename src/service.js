@@ -15,7 +15,7 @@ export function setLeads(scopeId, leads) {
   `).run(scopeId, payload);
 }
 
-/* -------------------- 언어 설정 추가 -------------------- */
+/* -------------------- 언어 설정 -------------------- */
 
 export function getLang(scopeId) {
   const row = db.prepare(`SELECT lang FROM settings WHERE scope_id=?`).get(scopeId);
@@ -37,13 +37,14 @@ export function setLang(scopeId, lang) {
   `).run(scopeId, currentLeads, val);
 }
 
-/* -------------------- 구독 관련 -------------------- */
+/* -------------------- 구독 -------------------- */
 
 export function subscribe(scopeId, source) {
   if (source === 'all') {
-    ['fed','ecb','boe'].forEach(s => db.prepare(
-      `INSERT OR IGNORE INTO subscriptions(scope_id, source) VALUES(?,?)`
-    ).run(scopeId, s));
+    ['fed','ecb','boe','news','cpi','nfp','fomc'].forEach(s =>
+      db.prepare(`INSERT OR IGNORE INTO subscriptions(scope_id, source) VALUES(?,?)`)
+        .run(scopeId, s)
+    );
     return;
   }
   db.prepare(`INSERT OR IGNORE INTO subscriptions(scope_id, source) VALUES(?,?)`).run(scopeId, source);
@@ -62,17 +63,36 @@ export function listSubscriptions(scopeId) {
   return rows.map(r => r.source);
 }
 
-/* -------------------- 이벤트 조회 -------------------- */
+/* -------------------- 조회 -------------------- */
+
+// 'news' 구독을 news 계열 태그들로 확장
+function expandSources(sources) {
+  if (!sources?.length) return [];
+  const out = [];
+  const push = v => { if (!out.includes(v)) out.push(v); };
+  for (const s of sources) {
+    if (s === 'news') {
+      ['news','news-fed','news-cpi','news-crypto'].forEach(push);
+    } else {
+      push(s);
+    }
+  }
+  return out;
+}
 
 export function getUpcomingEvents(hours = 48, sources = []) {
   const now = new Date().toISOString();
   const upper = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+
   let sql = `SELECT * FROM events WHERE start_utc BETWEEN ? AND ?`;
   const params = [now, upper];
+
   if (sources.length) {
-    sql += ` AND source IN (${sources.map(()=>'?').join(',')})`;
-    params.push(...sources);
+    const expanded = expandSources(sources);
+    sql += ` AND source IN (${expanded.map(() => '?').join(',')})`;
+    params.push(...expanded);
   }
+
   sql += ` ORDER BY start_utc ASC`;
   return db.prepare(sql).all(...params);
 }
