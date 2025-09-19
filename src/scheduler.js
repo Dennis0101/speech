@@ -25,7 +25,7 @@ export async function scheduleJobs(client) {
         SELECT * FROM events
         WHERE start_utc BETWEEN ? AND ?
         ORDER BY start_utc ASC
-      `).all(now.minus({hours:24}).toISO(), now.plus({hours:72}).toISO());
+      `).all(now.minus({ hours: 24 }).toISO(), now.plus({ hours: 72 }).toISO());
 
       const leads = getLeads(channelId); // 채널 스코프 리드 설정
       const leadHours = leads.map(leadToHours).filter(v => v !== null);
@@ -33,36 +33,46 @@ export async function scheduleJobs(client) {
       for (const ev of rows) {
         const start = DateTime.fromISO(ev.start_utc, { zone: 'utc' });
         const kst = start.setZone(KST).toFormat('yyyy-LL-dd (ccc) HH:mm');
+        const source = String(ev.source || '').toUpperCase();
+        const isNews = String(ev.source || '').startsWith('news');
 
         // 시작 알림
-        if (!ev.notified_start && now >= start && now <= start.plus({ minutes: 5 })) {
+        // 뉴스는 즉시성 강화를 위해 윈도우를 60분으로 확대
+        const windowMin = isNews ? 60 : 5;
+        if (!ev.notified_start && now >= start && now <= start.plus({ minutes: windowMin })) {
           await ch.send({
-            content: '🎙️ **시작!**',
+            content: isNews ? '⚡ **속보!**' : '🎙️ **시작!**',
             embeds: [{
-              title: `[${ev.source.toUpperCase()}] ${ev.title}`,
+              title: `[${source}] ${ev.title}`,
               url: ev.url,
-              description: `일시(KST): **${kst}**\n장소: ${ev.location || 'TBD'}\n연설자: ${ev.speaker || 'TBD'}`
+              description: isNews
+                ? `시각(KST): **${kst}**\n링크: ${ev.url}`
+                : `일시(KST): **${kst}**\n장소: ${ev.location || 'TBD'}\n연설자: ${ev.speaker || 'TBD'}`
             }]
           });
           db.prepare(`UPDATE events SET notified_start=1 WHERE id=?`).run(ev.id);
           continue;
         }
 
-        // 리드 알림 (예: 24h, 1h, 30m 등)
+        // 리드 알림 (예: 24h, 1h, 30m 등) — 뉴스에는 적용하지 않음
+        if (isNews) continue;
+
         for (const h of leadHours) {
           const mark = Math.round(h * 60); // 분 단위 키
           const col = `lead_${mark}`;
-          // 동적 컬럼 없으면 생성
-          db.exec(`ALTER TABLE events ADD COLUMN ${col} INTEGER DEFAULT 0`).catch(()=>{});
+          // 동적 컬럼 없으면 생성 (있으면 무시)
+          try {
+            db.exec(`ALTER TABLE events ADD COLUMN ${col} INTEGER DEFAULT 0`);
+          } catch (_) {}
           const diffH = start.diff(now).as('hours');
 
-          if (diffH <= h && diffH > h - 0.3) { // 18분 윈도우
+          if (diffH <= h && diffH > h - 0.3) { // 약 18분 윈도우
             const already = db.prepare(`SELECT ${col} AS v FROM events WHERE id=?`).get(ev.id)?.v;
             if (!already) {
               await ch.send({
-                content: `⏰ **${h >= 1 ? `${h}시간` : `${h*60}분`} 전** 알림`,
+                content: `⏰ **${h >= 1 ? `${h}시간` : `${h * 60}분`} 전** 알림`,
                 embeds: [{
-                  title: `[${ev.source.toUpperCase()}] ${ev.title}`,
+                  title: `[${source}] ${ev.title}`,
                   url: ev.url,
                   description: `일시(KST): **${kst}**\n장소: ${ev.location || 'TBD'}\n연설자: ${ev.speaker || 'TBD'}`
                 }]
