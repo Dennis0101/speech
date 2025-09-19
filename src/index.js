@@ -12,7 +12,6 @@ import { ingestCPI } from './ingestors/cpi.js';
 import { ingestNFP } from './ingestors/nfp.js';
 import { ingestFOMC } from './ingestors/fomc.js';
 
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -46,6 +45,7 @@ client.once('clientReady', async () => {
 
   scheduleJobs(client);
 
+  // 30분 주기 루프
   setInterval(async () => {
     try {
       await ingestFed();
@@ -60,6 +60,7 @@ client.once('clientReady', async () => {
     }
   }, 30 * 60 * 1000);
 
+  // 뉴스 단독 루프
   const newsMin = Math.max(1, Number(process.env.NEWS_POLL_MIN || 5));
   setInterval(async () => {
     try {
@@ -72,6 +73,11 @@ client.once('clientReady', async () => {
 
 client.on('messageCreate', async (msg) => {
   if (msg.author.bot || !msg.content.startsWith(PREFIX)) return;
+
+  // ✅ 패널 명령은 panel.js가 처리하므로 여기서 스킵
+  const raw = msg.content.trim();
+  if (raw === `${PREFIX}패널` || raw.toLowerCase() === `${PREFIX}panel`) return;
+
   const [cmd, ...args] = msg.content.slice(PREFIX.length).trim().split(/\s+/);
   try {
     await handlePrefixCommand({ client, msg, cmd: cmd.toLowerCase(), args });
